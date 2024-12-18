@@ -7,7 +7,7 @@ from vidigi.utils import populate_store
 class g:
     patient_inter = 5
     mean_n_consult_time = 6
-    number_of_nurses = 1
+    number_of_nurses = 2
     sim_duration = 120
     number_of_runs = 5
 
@@ -114,6 +114,9 @@ class Model:
         self.env.process(self.generator_patient_arrivals())
         self.env.run(until=g.sim_duration)
         self.calculate_run_results()
+        self.event_log = pd.DataFrame(self.event_log)
+        self.event_log["run"] = self.run_number
+        return {'results': self.results_df, 'event_log':self.event_log}
         #print (f"Run Number {self.run_number}")
         #print (self.results_df)
 
@@ -123,6 +126,7 @@ class Trial:
         self.df_trial_results["Run Number"] = [0]
         self.df_trial_results["Mean Q Time Nurse"] = [0.0]
         self.df_trial_results.set_index("Run Number", inplace=True)
+        self.all_event_logs = []
 
     def print_trial_results(self):
         print ("Trial Results")
@@ -131,8 +135,17 @@ class Trial:
     def run_trial(self):
         for run in range(g.number_of_runs):
             my_model = Model(run)
-            my_model.run()
-            self.df_trial_results.loc[run] = [my_model.mean_q_time_nurse]
+            model_outputs = my_model.run()
+            patient_level_results = model_outputs["results"]
+            event_log = model_outputs["event_log"]
+
+            #self.df_trial_results.loc[run] = [
+                #len(patient_level_results),
+                #my_model.mean_q_time_nurse,
+            #]
+            
+            self.all_event_logs.append(event_log)
+        self.all_event_logs = pd.concat(self.all_event_logs)
         self.print_trial_results()
 
 # Create an instance of the Trial class
@@ -140,3 +153,5 @@ my_trial = Trial()
 
 # Call the run_trial method of our Trial object
 my_trial.run_trial()
+
+my_trial.all_event_logs.tail(100)
