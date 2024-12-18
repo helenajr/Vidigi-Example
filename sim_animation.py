@@ -1,7 +1,7 @@
 import simpy
 import random
 import pandas as pd
-from vidigi.utils import populate_store
+from vidigi.utils import populate_store # NEW
 
 
 class g:
@@ -20,9 +20,8 @@ class Model:
     def __init__(self, run_number):
         self.env = simpy.Environment()
         self.patient_counter = 0
-        #self.nurse = simpy.Store(self.env) # changed this
-        self.init_resources() # changed this
-        self.nurse = simpy.Resource(self.env, capacity=g.number_of_nurses)
+        #self.nurse = simpy.Resource(self.env, capacity=g.number_of_nurses)
+        self.init_resources()
         self.run_number = run_number
 
         self.results_df = pd.DataFrame()
@@ -33,11 +32,11 @@ class Model:
 
         self.mean_q_time_nurse = 0
 
-    def init_resources(self): # this is a new class
+    def init_resources(self):
         self.nurse = simpy.Store(self.env)
         populate_store(num_resources=g.number_of_nurses,
-                        simpy_store = self.nurse,
-                        sim_env=self.env)
+                       simpy_store=self.nurse,
+                       sim_env=self.env)
 
     def generator_patient_arrivals(self):
         while True:
@@ -48,19 +47,21 @@ class Model:
             yield self.env.timeout(sampled_inter)
 
     def attend_clinic(self, patient):
-        self.arrival = self.env.now 
+        
         start_q_nurse = self.env.now
-        treatment_resource = yield self.nurse.get()
-        end_q_nurse = self.env.now
-        patient.q_time_nurse = end_q_nurse - start_q_nurse
-        self.results_df.at[patient.id, "Q Time Nurse"] = (
+
+        with self.nurse.get() as req:
+            yield req
+            end_q_nurse = self.env.now
+            patient.q_time_nurse = end_q_nurse - start_q_nurse
+            self.results_df.at[patient.id, "Q Time Nurse"] = (
                 patient.q_time_nurse)
-        sampled_nurse_act_time = random.expovariate(1.0 / 
+            sampled_nurse_act_time = random.expovariate(1.0 / 
                                                         g.mean_n_consult_time)
-        self.results_df.at[patient.id, "Time with Nurse"] = (
+            self.results_df.at[patient.id, "Time with Nurse"] = (
                 sampled_nurse_act_time)
-        yield self.env.timeout(sampled_nurse_act_time)
-        self.nurse.put(treatment_resource)
+            yield self.env.timeout(sampled_nurse_act_time)
+            self.nurse.put(req)
 
     def calculate_run_results(self):
         self.mean_q_time_nurse = self.results_df["Q Time Nurse"].mean()
