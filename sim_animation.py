@@ -14,24 +14,14 @@ class g:
 class Patient:
     def __init__(self, p_id):
         self.id = p_id
-        self.q_time_nurse = 0
 
 class Model:
     def __init__(self, run_number):
         self.env = simpy.Environment()
         self.event_log = []
         self.patient_counter = 0
-        #self.nurse = simpy.Resource(self.env, capacity=g.number_of_nurses)
         self.init_resources()
         self.run_number = run_number
-
-        self.results_df = pd.DataFrame()
-        self.results_df["Patient ID"] = [1]
-        self.results_df["Q Time Nurse"] = [0.0]
-        self.results_df["Time with Nurse"] = [0.0]
-        self.results_df.set_index("Patient ID", inplace=True)
-
-        self.mean_q_time_nurse = 0
     
     def init_resources(self):
         self.nurse = simpy.Store(self.env)
@@ -80,12 +70,9 @@ class Model:
          }
         )
 
-        self.results_df.at[patient.id, "Q Time Nurse"] = (
-                patient.q_time_nurse)
         sampled_nurse_act_time = random.expovariate(1.0 / 
                                                         g.mean_n_consult_time)
-        self.results_df.at[patient.id, "Time with Nurse"] = (
-                sampled_nurse_act_time)
+        
         yield self.env.timeout(sampled_nurse_act_time)
 
         self.event_log.append(
@@ -107,46 +94,25 @@ class Model:
         )
             
 
-    def calculate_run_results(self):
-        self.mean_q_time_nurse = self.results_df["Q Time Nurse"].mean()
-
     def run(self):
         self.env.process(self.generator_patient_arrivals())
         self.env.run(until=g.sim_duration)
-        self.calculate_run_results()
         self.event_log = pd.DataFrame(self.event_log)
         self.event_log["run"] = self.run_number
-        return {'results': self.results_df, 'event_log':self.event_log}
-        #print (f"Run Number {self.run_number}")
-        #print (self.results_df)
+        return {'event_log':self.event_log}
 
 class Trial:
     def  __init__(self):
-        self.df_trial_results = pd.DataFrame()
-        self.df_trial_results["Run Number"] = [0]
-        self.df_trial_results["Mean Q Time Nurse"] = [0.0]
-        self.df_trial_results.set_index("Run Number", inplace=True)
         self.all_event_logs = []
-
-    def print_trial_results(self):
-        print ("Trial Results")
-        print (self.df_trial_results)
 
     def run_trial(self):
         for run in range(g.number_of_runs):
             my_model = Model(run)
             model_outputs = my_model.run()
-            patient_level_results = model_outputs["results"]
             event_log = model_outputs["event_log"]
-
-            #self.df_trial_results.loc[run] = [
-                #len(patient_level_results),
-                #my_model.mean_q_time_nurse,
-            #]
             
             self.all_event_logs.append(event_log)
         self.all_event_logs = pd.concat(self.all_event_logs)
-        self.print_trial_results()
 
 # Create an instance of the Trial class
 my_trial = Trial()
