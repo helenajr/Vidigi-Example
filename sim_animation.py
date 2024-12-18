@@ -19,6 +19,7 @@ class Patient:
 class Model:
     def __init__(self, run_number):
         self.env = simpy.Environment()
+        self.event_log = []
         self.patient_counter = 0
         #self.nurse = simpy.Resource(self.env, capacity=g.number_of_nurses)
         self.init_resources()
@@ -47,20 +48,64 @@ class Model:
             yield self.env.timeout(sampled_inter)
 
     def attend_clinic(self, patient):
-        start_q_nurse = self.env.now
+        self.arrival = self.env.now
+        self.event_log.append(
+            {'patient' : patient.id,
+             'pathway' : 'Simplest',
+             'event_type' : 'arrival_departure',
+             'event' : 'arrival',
+             'time' : self.env.now}
+        )
 
-        with self.nurse.get() as req:
-            yield req
-            end_q_nurse = self.env.now
-            patient.q_time_nurse = end_q_nurse - start_q_nurse
-            self.results_df.at[patient.id, "Q Time Nurse"] = (
+        start_q_nurse = self.env.now
+        self.event_log.append(
+            {'patient' : patient.id,
+             'pathway' : 'Simplest',
+             'event_type' : 'queue',
+             'event' : 'treatment_wait_begins',
+             'time' : self.env.now}
+        )
+
+        treatment_resource = yield self.nurse.get()
+
+        end_q_nurse = self.env.now
+        patient.q_time_nurse = end_q_nurse - start_q_nurse
+        self.event_log.append(
+        {'patient' : patient.id,
+        'pathway' : 'Simplest',
+        'event_type' : 'resource_use',
+        'event' : 'treatment_begins',
+        'time' : self.env.now,
+        'resource_id': treatment_resource.id_attribute
+         }
+        )
+
+        self.results_df.at[patient.id, "Q Time Nurse"] = (
                 patient.q_time_nurse)
-            sampled_nurse_act_time = random.expovariate(1.0 / 
+        sampled_nurse_act_time = random.expovariate(1.0 / 
                                                         g.mean_n_consult_time)
-            self.results_df.at[patient.id, "Time with Nurse"] = (
+        self.results_df.at[patient.id, "Time with Nurse"] = (
                 sampled_nurse_act_time)
-            yield self.env.timeout(sampled_nurse_act_time)
-            self.nurse.put(req)
+        yield self.env.timeout(sampled_nurse_act_time)
+
+        self.event_log.append(
+        {'patient' : patient.id,
+        'pathway' : 'Simplest',
+        'event_type' : 'resource_use_end',
+        'event' : 'treatment_complete',
+        'time' : self.env.now,
+        'resource_id': treatment_resource.id_attribute}
+        )
+        self.nurse.put(treatment_resource)
+
+        self.event_log.append(
+        {'patient' : patient.id,
+        'pathway' : 'Simplest',
+        'event_type' : 'arrival_departure',
+        'event' : 'depart',
+        'time' : self.env.now}
+        )
+            
 
     def calculate_run_results(self):
         self.mean_q_time_nurse = self.results_df["Q Time Nurse"].mean()
