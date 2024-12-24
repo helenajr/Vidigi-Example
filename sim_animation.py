@@ -10,7 +10,7 @@ from vidigi.animation import generate_animation
 
 
 class g:
-    patient_inter = 2
+    patient_inter = 5
     mean_n_consult_time = 6
     n_cubicles = 15
     sim_duration = 120
