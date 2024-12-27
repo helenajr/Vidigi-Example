@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import plotly.express as px
 from sim_animation import g, Trial
 
 #overwrite g class - while we are messing around
@@ -38,7 +39,7 @@ my_selection_rows = my_selection[(my_selection["patient"] < 10) & (my_selection[
 my_selection_rows.head(100)
 
 #pivot so 1 row per patient per run
-pivot0 = my_selection_rows.pivot(index=["patient","run"], columns="event", values="time")
+pivot0 = my_selection.pivot(index=["patient","run"], columns="event", values="time")
 pivot0 = (pivot0.reset_index()
                 .rename_axis(None,axis=1))
 
@@ -64,6 +65,19 @@ summary.head()
 
 
 #create a histogram of waiting times
+#counts,bins=np.histogram(pivot0.q_time, bins=range(0,90,5))
+#bins=0.5*(bins[:-1]+bins[1:])
+
+#fig=px.bar(x=bins,y=counts,labels={'x':'q_time', 'y':'count'})
+
+#histogram with bins of size 5 starting at 0!
+fig=px.histogram(pivot0, x="q_time")
+#fig.update_traces(xbins_size = 5)
+fig.update_traces(xbins=dict(
+    start=0.0,
+    size=5
+))
+fig.show()
 
 
 #create a box and whisker of waiting times per run
