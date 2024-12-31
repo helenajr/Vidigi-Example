@@ -3,12 +3,16 @@ import numpy as np
 import plotly.express as px
 from sim_animation import g, Trial
 
+#create a function
+def round_to_nearest_five(number):
+    return round(number / 5) * 5
+
 #overwrite g class - while we are messing around
-g.patient_inter = 1
+g.patient_inter = 3
 g.mean_n_consult_time = 6
 g.n_cubicles = 2
-g.sim_duration = 120
-g.number_of_runs = 5
+g.sim_duration = 10000
+g.number_of_runs = 10
 
 # Create an instance of the Trial class
 my_trial = Trial()
@@ -38,6 +42,13 @@ my_selection.head()
 my_selection_rows = my_selection[(my_selection["patient"] < 10) & (my_selection["run"] < 2)] #could use.loc but also works without it
 my_selection_rows.head(100)
 
+#sort by a column
+my_selection_rows = my_selection_rows.sort_values(by="time")
+
+#remove all nas
+my_selection_rows = my_selection_rows.dropna(subset=["time", "run"])
+#can also use .notnull() for filtering
+
 #pivot so 1 row per patient per run
 pivot0 = my_selection.pivot(index=["patient","run"], columns="event", values="time")
 pivot0 = (pivot0.reset_index()
@@ -50,7 +61,7 @@ pivot0["total_los"] = pivot0["depart"] - pivot0["arrival"]
 pivot0["q_time"] = pivot0["treatment_begins"] - pivot0["treatment_wait_begins"]
 pivot0["treatment_time"] = pivot0["treatment_complete"] - pivot0["treatment_begins"]
                                  
-pivot0.tail()
+display(pivot0.tail())
 
 #creating a summary table by run
 summary = pivot0.groupby("run").agg(
@@ -61,14 +72,10 @@ summary = pivot0.groupby("run").agg(
     under_2=(("q_time", lambda x: (x < 2).sum()))
 ).reset_index()
 
-summary.head()
+display(summary.head())
 
 
 #create a histogram of waiting times
-#counts,bins=np.histogram(pivot0.q_time, bins=range(0,90,5))
-#bins=0.5*(bins[:-1]+bins[1:])
-
-#fig=px.bar(x=bins,y=counts,labels={'x':'q_time', 'y':'count'})
 
 #histogram with bins of size 5 starting at 0!
 fig=px.histogram(pivot0, x="q_time")
@@ -81,6 +88,21 @@ fig.show()
 
 
 #create a box and whisker of waiting times per run
-
+fig=px.box(pivot0, x="run", y="q_time")
+fig.show()
 
 #create a plot of waiting times over time
+
+pivot0["arrival_rounded"] = round_to_nearest_five(pivot0["arrival"])
+
+min_summary = pivot0.groupby("arrival_rounded").agg(
+    mean_qtime=("q_time", "mean")
+).reset_index()
+
+min_summary = min_summary.dropna()
+
+#display(min_summary)
+
+# plot as line chart
+fig=px.line(min_summary, x="arrival_rounded", y="mean_qtime")
+fig.show()
